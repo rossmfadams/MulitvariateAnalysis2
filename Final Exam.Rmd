@@ -1,0 +1,193 @@
+---
+title: "Final Exam"
+author: "Ross Adams"
+date: "Due: 12/11/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggbiplot)
+library(tidyverse)
+library(psych)
+library(GPArotation)
+library(MASS)
+library(ggord)
+library(klaR)
+data(wine)
+
+```
+
+## Honor Statement
+
+I hereby swear that the work done on this exam is my own and I have not given nor received aid that is inappropriate for this exam I undertand that I am only allowed to discuss this exam with Dr. Worley. I understand that violation of these principles is considered cheating and will lead to a zero on this assignment.
+-Ross Adams
+
+## Instructions
+
+For the following problems, we will be using the `wine` dataset from the `ggbiplot` package. This package has been added to the setup chunk above along with a line to load the data. You should add any other packages to the library as necessary in the setup chunk as well.
+
+## Problem 1
+
+Calculate the principal components of the `wine` dataset. 
+
+```{r}
+wine.pca <- prcomp(wine, scale. = TRUE)
+```
+
+## Problem 2
+
+Generate a biplot of the previously calculated PCA. This data represents wines from three different cultivars grown in the same region of Italy. The vector containing the wine types is named `wine.class` and is located in the `ggbiplot` package. Generate an ellipse for each of the three different wine cultivars. Describe any patterns you see in the various wine types. Also, state what percent of variation is accounted for by the first and second principal components. 
+
+```{r}
+ggbiplot(wine.pca, obs.scale = 1, var.scale = 1,
+         groups = wine.class, ellipse = TRUE, circle = TRUE) +
+  scale_color_discrete(name = '') +
+  theme(legend.direction = 'horizontal', legend.position = 'top')
+```
+Both barolo and barbera are more alcoholic than grignolino. Barolo is less acidic than the other two. Grignolino is the most medium bodied and lightly colored of the three. PC1 accounts for 36.2% of the variance while PC2 accounts for 19.2%.
+
+## Problem 3
+
+Repeat Problem 2 with principal components 3 and 4.
+
+```{r}
+ggbiplot(wine.pca, choices = 3:4, obs.scale = 1, var.scale = 1,
+         groups = wine.class, ellipse = TRUE, circle = TRUE) +
+  scale_color_discrete(name = '') +
+  theme(legend.direction = 'horizontal', legend.position = 'top')
+```
+
+## Problem 4
+
+Let's begin performing factor analysis on the `wine` data. Calculate an acceptable number of factors and generate a scree plot. Describe what you believe are an acceptable number of factors based on these results.
+
+```{r}
+numFactors <- fa.parallel(wine, fm = "minres", fa = "fa")
+```
+
+Based on the inflection point of the graphs of actual and sampled data I would determine the appropriate number of factors to be 4. This is supported by the fact that 4 also appears to be the point where the actual data graph levels off to the right.
+
+## Problem 5
+
+Conduct factor analysis by using the number of factors deemed acceptable in Problem 4. Consider cutoffs of 0.3. Select the best number of factors.
+
+Note: simple structure is not achievable in this case. However, a number of factors exists such that all factors are significant and only one factor has double-loading.
+
+```{r}
+fourFactor <- fa(wine, nfactors = 4, rotate = "oblimin", fm = "minres")
+print(fourFactor$loadings, cutoff = 0.3)
+```
+
+## Problem 6
+
+Generate a diagram of the factor mapping.
+
+```{r}
+fa.diagram(fourFactor)
+```
+
+## Problem 7
+
+Validate the model found in Problem 5 by analyzing the root mean square of residuals, root mean square error of approximation, and the Tucker-Lewis index. State any values that might seem questionable.
+
+```{r}
+fourFactor
+```
+RMSR:   0.03
+RMSEA:  0.097  and the 90 % confidence intervals are  0.073 0.123
+Tucker-Lewis: 0.891
+
+The RMSEA is questionable as it is over 0.05. Also, although the TL index is close to the acceptable value of 0.9 it is just under indicating that the factoring may be unreliable.
+
+## Problem 8
+
+Now let's conduct linear discriminant analysis on the `wine` data. Start by generating paired plots of each variable. Recall that the types are not held within the dataset and are rather found in the `wine.class` vector. Note: this will be a rather large $13 \times 13$ image if done correctly.
+
+```{r}
+pairs.panels(wine[1:13],
+             gap = 0,
+             bg = c("red","green","blue")[wine.class],
+             pch = 21)
+```
+
+## Problem 9
+
+Conduct a data partition on the `wine` data. Use a seed of `123` to guarantee consistent testing and training data.
+
+Note: it is beneficial here to generate subvectors of `wine.class` using the same index as the training and testing data so that you can identify the type of each.
+
+```{r}
+wine_Type <- cbind(wine, Type = wine.class)
+set.seed(123)
+ind <- sample(2, nrow(wine),
+              replace = TRUE,
+              prob = c(0.6,0.4))
+training <- wine_Type[ind==1,]
+testing <- wine_Type[ind==2,]
+```
+
+## Problem 10
+
+Perform LDA on the training data set. Describe the results including prior probabilities of groups, coefficients of the first linear discriminant, and the proportion of trace.
+
+```{r}
+linear <- lda(Type ~ .,training)
+linear
+attributes(linear)
+```
+
+## Problem 11
+
+Generate a stacked histogram of the discriminant function values. Describe any overlap that you see.
+
+```{r}
+p <- predict(linear,training)
+ldahist(data = p$x[,1], g = training$Type)
+ldahist(data = p$x[,2], g = training$Type)
+```
+Barolo and Grignolino are cleanly separated. However, Barbera overlaps significantly with Barolo and, to a lesser degree, with Grignolino. Barbera is not distinct from any other group at any point on the graph.
+
+## Problem 12
+
+Generate a biplot of the linear discriminant analysis. Describe any separation or overlap you observe in the wine types.
+
+```{r}
+ggord(linear, training$Type, ylim = c(-7,7))
+```
+In the biplot above the wine types are clearly distinct from one another and form clear clusters with the exception of a few outliers from grignolino and barbera
+
+## Problem 13
+
+Calculate the confusion matrix and calculate accuracy for training data. Describe your results for any misclassifications.  
+
+```{r}
+p1 <- predict(linear, training)$class
+tab <- table (Predicted = p1, Actual = training$Type)
+tab
+sum(diag(tab))/sum(tab)
+```
+The model was able to predict with 100% accuracy. This is likely due to the fact that this is the same data on which it was trained.
+
+## Problem 14
+
+Calculate the confusion matrix and calculate accuracy for testing data. Describe your results for any misclassifications.  
+
+```{r}
+p2 <- predict(linear, testing)$class
+tab1 <- table(Predicted = p2, Actual = testing$Type)
+tab1
+sum(diag(tab))/sum(tab)
+```
+2 Barolo were predicted as Grignolino and 1 Barbera was predicted as Grignolino. 
+
+## Bonus
+
+Give me three ideas for baby boy first names. (We already have a girl name picked out)
+Oliver
+Liam
+Ethan
+(taken from the top baby boy names of 2020 :) )
+### Sidenote:
+
+Thank you all for your patience and understanding this semester. Your support through my first pregnancy has meant more than you can ever imagine. 
